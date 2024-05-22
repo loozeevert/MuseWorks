@@ -1,18 +1,20 @@
 package main
 
 import (
-	"package/db"
-	"package/handlers"
 	"context"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"package/db"
+	"package/handlers"
 	"syscall"
 	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
+
 // основная исполняющая функция, здесь мы инициализируем БД, настраиваем маршруты запросов
 func main() {
 	err := godotenv.Load()
@@ -38,7 +40,7 @@ func main() {
 		}
 		c.Next()
 	})
-// роут получения инфы о пользователе
+	// роут получения инфы о пользователе
 	r.GET("/getUserInfo", func(c *gin.Context) {
 		handler.GetUserInfo(c)
 	})
@@ -57,7 +59,31 @@ func main() {
 			handler.LoginUser(c)
 		})
 	}
-//остальное базовые настройки сервера
+
+	user := r.Group("/user")
+	{
+		// роут изменения данных пользователя
+		user.PUT("/edit", func(c *gin.Context) {
+			handler.EditUser(c)
+		})
+	}
+
+	card := r.Group("/card")
+	{
+		// роут создания карточки
+		card.POST("/create", func(c *gin.Context) {
+			handler.CreateCard(c)
+		})
+		// роут удаления карточки
+		card.DELETE("/delete", func(c *gin.Context) {
+			handler.DeleteCard(c)
+		})
+		// роут получения всех карточек
+		card.GET("/getAll", func(c *gin.Context) {
+			handler.GetAllCards(c)
+		})
+	}
+	//остальное базовые настройки сервера
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: r,

@@ -10,40 +10,47 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
-//структура базы данный где хранится пулы подключения к базе данных
+
+// структура базы данный где хранится пулы подключения к базе данных
 type DB struct {
 	pool *pgxpool.Pool
 }
-//структура юзера
+
+// структура юзера
 type User struct {
-	UserId       uuid.UUID `json:"id"`
-	Username     string    `json:"name"     binding:"required"`
-	Email        string    `json:"email"    binding:"required"`
-	Password     string    `json:"password" binding:"required,min=8"`
-	Description  *string   `json:"description"`
-	Avatar       *string   `json:"avatar"`
-	ConfirmCode  int       `json:"confirmCode"`
+	UserId      uuid.UUID `json:"id"`
+	Username    string    `json:"name,omitempty"         binding:"required"`
+	Email       string    `json:"email,omitempty"        binding:"required"`
+	Password    string    `json:"password,omitempty"     binding:"required,min=8"`
+	Description *string   `json:"description,omitempty"`
+	Avatar      *string   `json:"avatar,omitempty"`
+	ConfirmCode int       `json:"confirmCode,omitempty"`
 }
-//структура передаваемых значений при логине
+
+// структура передаваемых значений при логине
 type UserLoginData struct {
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
-//структура токена
+
+// структура токена
 type Token struct {
 	TokenString string `json:"accessToken"`
 }
-//структура Email
+
+// структура Email
 type UserEmailData struct {
 	Email string `json:"email" binding:"required"`
 }
-//функция создания нового подключения к бд
+
+// функция создания нового подключения к бд
 func NewDB(pool *pgxpool.Pool) *DB {
 	return &DB{
 		pool: pool,
 	}
 }
-//функция хеширования пароля
+
+// функция хеширования пароля
 func hashPassword(password string) (string, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -51,7 +58,8 @@ func hashPassword(password string) (string, error) {
 	}
 	return string(hashedPassword), nil
 }
-//функция старта подключения к бд (используется в main)
+
+// функция старта подключения к бд (используется в main)
 func DbStart(baseUrl string) *pgxpool.Pool {
 	urlExample := baseUrl
 	dbpool, err := pgxpool.New(context.Background(), string(urlExample))
@@ -61,7 +69,8 @@ func DbStart(baseUrl string) *pgxpool.Pool {
 	}
 	return dbpool
 }
-//функция которая является методом структуры DB позволяет сделать запрос в бд для добавления пользователя после регистрации
+
+// функция которая является методом структуры DB позволяет сделать запрос в бд для добавления пользователя после регистрации
 func (db DB) RegisterUser(userData User) (string, error) {
 	conn, err := db.pool.Acquire(context.Background())
 	if err != nil {
@@ -84,7 +93,8 @@ func (db DB) RegisterUser(userData User) (string, error) {
 
 	return "Вы успешно зарегистрировались", nil
 }
-//функция которая является методом структуры DB позволяет сделать запрос в бд для получения инфы о пользователе
+
+// функция которая является методом структуры DB позволяет сделать запрос в бд для получения инфы о пользователе
 func (db DB) GetUserByEmail(email string) (*User, error) {
 	conn, err := db.pool.Acquire(context.Background())
 	if err != nil {
@@ -101,7 +111,8 @@ func (db DB) GetUserByEmail(email string) (*User, error) {
 
 	return &user, err
 }
-//опциональная функция, которая нужна для проверки наличия юзера в БД
+
+// опциональная функция, которая нужна для проверки наличия юзера в БД
 func (db DB) userExists(userID uuid.UUID) (bool, error) {
 	conn, err := db.pool.Acquire(context.Background())
 	if err != nil {
@@ -119,7 +130,8 @@ func (db DB) userExists(userID uuid.UUID) (bool, error) {
 
 	return exists, err
 }
-//функция которая является методом структуры DB позволяет сделать запрос в бд для получения инфы о юзере
+
+// функция которая является методом структуры DB позволяет сделать запрос в бд для получения инфы о юзере
 func (db DB) GetUserInfo(userID uuid.UUID) (User, error) {
 	exists, err := db.userExists(userID)
 	if err != nil {
@@ -150,6 +162,7 @@ func (db DB) GetUserInfo(userID uuid.UUID) (User, error) {
 
 	return user, err
 }
+
 // функция которая проверяет при отправке на почту письма есть ли юзер в БД
 func (db DB) UserExistsByEmail(email string) (bool, error) {
 	var exists bool
@@ -158,4 +171,19 @@ func (db DB) UserExistsByEmail(email string) (bool, error) {
 		return false, err
 	}
 	return exists, nil
+}
+
+// функция которая изменяет данные пользователя
+func (db DB) EditUserInfo(user *User) error {
+	conn, err := db.pool.Acquire(context.Background())
+	if err != nil {
+		return fmt.Errorf("невозможно получить соединение с базой данных: %v", err)
+	}
+	defer conn.Release()
+
+	_, err = conn.Exec(context.Background(),
+		"UPDATE users set (username, description, avatar) = ($1, $2, $3) WHERE userid = $4",
+		user.Username, user.Description, user.Avatar, user.UserId)
+
+	return err
 }
